@@ -59,10 +59,12 @@ Supported events:
 | `Paste(string)` | Bracketed paste preserved as one text event, including embedded escapes and newlines |
 | `Focus(bool)` | Xterm focus-in/focus-out |
 | `Resize(Size)` | Changed nonzero row/column dimensions |
-| `Unknown(string)` | Unsupported CSI/SS3 and OSC/DCS/APC/PM replies kept as one event; undecodable/incomplete UTF-8 replies use a descriptive placeholder |
+| `Unknown(string)` | Unsupported CSI/SS3 and OSC/DCS/SOS/APC/PM replies kept as one event; undecodable/incomplete UTF-8 replies use a descriptive placeholder |
 | `End` | Input EOF, delivered once |
 
 Alphabetic CSI keys accept no parameters, an explicit first parameter of `1`, or `1;modifier` with modifiers `1..8`. Bare SS3 cursor/Home/End/F1–F4 keys and the legacy CSI `11~` through `14~` F1–F4 forms remain supported; modified function keys use CSI. Non-key parameter shapes such as CSI `999A` and the cursor-position reply CSI `2;3R` stay `Unknown`. CSI `1;modifierR` is intrinsically ambiguous with a cursor-position reply on row one; this decoder interprets it as F3 with modifiers. Applications querying cursor position must account for that legacy ambiguity. This matches the overlapping encodings documented by [Xterm](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html).
+
+SOS (`ESC X`) payloads remain opaque until ST (`ESC \`), including embedded BEL and control bytes; incomplete SOS strings follow the same escape timeout and size limits as other control strings. Their contents never become ordinary key events.
 
 The decoder supports standard xterm CSI/SS3 keys and SGR mouse. It does not negotiate Kitty keyboard, modifyOtherKeys, key-release events, legacy X10 mouse, terminal-specific terminfo keys, or IME composition. A terminal may encode multiple physical keys identically; the library does not invent missing distinctions. Mouse reporting enables button-motion mode, not all-motion mode. Ctrl-C is a typed control key while raw mode is enabled; the application decides how to handle it.
 

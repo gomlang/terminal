@@ -253,7 +253,8 @@ fn parse_buffer(state: DecodeState, options: DecoderOptions, output: Vec[Event])
         if buffer.len() == 1 {
             return Result::Ok(next)
         }
-        if buffer[1] == 93 || buffer[1] == 80 || buffer[1] == 95 || buffer[1] == 94 {
+        if buffer[1] == 93 || buffer[1] == 80 || buffer[1] == 95 || buffer[1] == 94
+            || buffer[1] == 88 {
             if buffer.len() > options.max_sequence_bytes {
                 return Result::Err(malformed("control string byte limit exceeded"))
             }
