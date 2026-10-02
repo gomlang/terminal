@@ -505,3 +505,44 @@ fn standard_csi_ss3_and_legacy_tilde_key_tables_keep_their_modifiers() -> () {
         );
     }
 }
+
+#[test]
+fn sos_control_strings_are_opaque_fragmentable_and_bounded() -> () {
+    let reply = "\u001bXopaque\u0007\u001b[A中\u001b\\";
+    let bytes = (reply + "z").to_bytes();
+    let expected = Vec::from_array(
+        [terminal::Event::Unknown(reply), key(terminal::KeyCode::Char('z'))],
+    );
+    for split in 0..bytes.len() + 1 {
+        let parser = decoder();
+        let events = testing::expect_ok(parser.feed(bytes.slice(0, split)), "first fragment");
+        for event in testing::expect_ok(
+            parser.feed(bytes.slice(split, bytes.len())),
+            "second fragment",
+        ) {
+            events.push(event);
+        }
+        equal(events, expected);
+    }
+    let parser = decoder();
+    testing::assert(
+        testing::expect_ok(parser.feed("\u001bXunfinished".to_bytes().as_slice()), "partial SOS").is_empty(),
+    );
+    testing::assert(parser.pending_escape());
+    equal(parser.flush_escape(), Vec::from_array([terminal::Event::Unknown("\u001bXunfinished")]));
+    equal(
+        testing::expect_ok(parser.feed("a".to_bytes().as_slice()), "after timeout"),
+        Vec::from_array([key(terminal::KeyCode::Char('a'))]),
+    );
+    let bounded = testing::expect_ok(
+        terminal::Decoder::new(
+            terminal::DecoderOptions {
+                max_sequence_bytes: 8,
+                ..terminal::DecoderOptions::defaults(),
+            },
+        ),
+        "bounded decoder",
+    );
+    testing::assert_err(bounded.feed("\u001bX1234567".to_bytes().as_slice()));
+    testing::assert_err(bounded.feed("z".to_bytes().as_slice()));
+}

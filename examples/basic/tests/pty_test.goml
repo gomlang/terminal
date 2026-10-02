@@ -1,0 +1,79 @@
+package tests;
+
+use ecosystem::terminal;
+use std::bytes::endian;
+use std::context;
+use std::os::linux::fd;
+use std::testing;
+
+#[test]
+fn real_pty_preserves_sos_reply_boundaries_and_restores_terminal_state() -> () {
+    let master = testing::expect_ok(
+        fd::open("/dev/ptmx", fd::O_RDWR | fd::O_NOCTTY, 0),
+        "PTY master",
+    );
+    defer {
+        let _ = master.close();
+    };
+    let zeroes = Vec::from_array([0, 0, 0, 0]);
+    testing::assert_ok(master.ioctl(0x40045431, zeroes.as_mut_slice()));
+    testing::assert_ok(master.ioctl(0x80045430, zeroes.as_mut_slice()));
+    let number = testing::expect_ok(
+        endian::read_u32(zeroes.as_slice(), 0, endian::Endian::Little),
+        "PTY number",
+    );
+    let slave = testing::expect_ok(
+        fd::open("/dev/pts/" + number.to_string(), fd::O_RDWR | fd::O_NOCTTY, 0),
+        "PTY slave",
+    );
+    defer {
+        let _ = slave.close();
+    };
+    let before = Vec::new();
+    let after = Vec::new();
+    for _ in 0..36 {
+        before.push(0);
+        after.push(0);
+    }
+    testing::assert_ok(slave.ioctl(0x5401, before.as_mut_slice()));
+    let flags = testing::expect_ok(slave.status_flags(), "original flags");
+    let session = testing::expect_ok(
+        terminal::Session::from_fds(
+            slave,
+            slave,
+            terminal::Options { raw_mode: true, ..terminal::Options::defaults() },
+        ),
+        "raw session",
+    );
+    defer {
+        let _ = session.close();
+    };
+    testing::assert_ok(master.write_all("\u001bXopaque\u0007\u001b[A".to_bytes().as_slice()));
+    testing::assert_none(
+        testing::expect_ok(session.next_event(context::Context::background(), 0), "partial reply"),
+    );
+    testing::assert_ok(master.write_all("中\u001b\\q".to_bytes().as_slice()));
+    assert_event(
+        testing::expect_ok(session.next_event(context::Context::background(), 200), "SOS reply"),
+        Option::Some(terminal::Event::Unknown("\u001bXopaque\u0007\u001b[A中\u001b\\")),
+    );
+    assert_event(
+        testing::expect_ok(session.next_event(context::Context::background(), 200), "following key"),
+        Option::Some(
+            terminal::Event::Key(
+                terminal::KeyEvent {
+                    code: terminal::KeyCode::Char('q'),
+                    modifiers: terminal::Modifiers::none(),
+                },
+            ),
+        ),
+    );
+    testing::assert_ok(session.close());
+    testing::assert_ok(slave.ioctl(0x5401, after.as_mut_slice()));
+    testing::assert(before == after);
+    testing::assert_eq(testing::expect_ok(slave.status_flags(), "restored flags"), flags);
+}
+
+fn assert_event(actual: Option[terminal::Event], expected: Option[terminal::Event]) -> () {
+    testing::assert(actual == expected);
+}
