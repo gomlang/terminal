@@ -1,5 +1,0 @@
-[module]
-path = "consumer::terminal"
-
-[dependencies]
-"ecosystem::terminal" = "0.1.0"

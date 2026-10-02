@@ -82,4 +82,16 @@ Protocol and raw-mode references: [Xterm control sequences](https://invisible-is
 
 ## Validation
 
-Run `(cd ../verification && just ecosystem-test terminal)` from this library repository. The native GoML verifier builds the consumer and exercises it under real Linux PTYs: fragmented keys/UTF-8/paste, ESC ambiguity, mouse/focus, ioctl resize, cancellation, ordinary error cleanup, exact termios/flag restoration, mode enable/disable output, a 4 MiB write with backpressure, and redirected-file offset/append preservation. Pipe tests cover EOF, raw-mode rejection, session aliases, queued/active reader and writer cancellation, serialization under backpressure, idempotent close, and flag restoration. The verifier also rebuilds and runs generated library and consumer tests with Go's race detector. No Python interpreter is required.
+Run `(cd ../verification && just ecosystem-test terminal)` from this library repository. The native GoML verifier builds the example and exercises it under real Linux PTYs: fragmented keys/UTF-8/paste, ESC ambiguity, mouse/focus, ioctl resize, cancellation, ordinary error cleanup, exact termios/flag restoration, mode enable/disable output, a 4 MiB write with backpressure, and redirected-file offset/append preservation. Pipe tests cover EOF, raw-mode rejection, session aliases, queued/active reader and writer cancellation, serialization under backpressure, idempotent close, and flag restoration. The verifier also rebuilds and runs generated library and example tests with Go's race detector. No Python interpreter is required.
+
+## Development and examples
+
+Requires GoML 0.1.55 or newer. The `examples/basic/` example shares the root manifest. From the library root, run:
+
+```sh
+goml run --example basic
+goml test
+goml verify --timeout 300s
+```
+
+`goml test` builds the example and runs its tests. `goml verify` repeats the example checks as an independent module against an isolated registry snapshot. `(cd ../verification && just ecosystem-test terminal)` also retains the library-specific smoke and compatibility checks.

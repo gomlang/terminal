@@ -1,6 +1,6 @@
 package tests;
 
-use consumer::terminal as app;
+use ecosystem::terminal::examples::basic as app;
 use ecosystem::terminal;
 use std::testing;
 
