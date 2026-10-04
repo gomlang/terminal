@@ -396,10 +396,12 @@ impl Decoder {
             return Result::Ok(events)
         }
         state.finished = true;
-        self.state.set(state);
         if state.paste || !state.buffer.is_empty() {
+            state.failed = true;
+            self.state.set(state);
             return Result::Err(malformed("truncated UTF-8 or bracketed paste at EOF"))
         }
+        self.state.set(state);
         events.push(Event::End);
         Result::Ok(events)
     }

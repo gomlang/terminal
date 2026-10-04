@@ -44,7 +44,7 @@ A terminal should have one application-owned session. Independent sessions contr
 
 ## Events and cancellation
 
-`next_event(context, timeout_ms)` returns `Result[Option[Event], Error]`. `-1` waits indefinitely, `0` polls without waiting, and a positive timeout includes waiting for input ownership. `None` means timeout or an already-delivered EOF. `Event::End` is delivered exactly once after valid buffered input. Invalid UTF-8 and truncated paste at EOF are errors.
+`next_event(context, timeout_ms)` returns `Result[Option[Event], Error]`. `-1` waits indefinitely, `0` polls without waiting, and a positive timeout includes waiting for input ownership. `None` means timeout or an already-delivered EOF. `Event::End` is delivered exactly once after valid buffered input. Invalid UTF-8 and truncated paste at EOF are errors. Truncated EOF permanently fails the decoder, so later `finish` or session reads also return an error instead of reporting successful EOF.
 
 `Context` cancellation yields `io::ErrorKind::Interrupted`; context deadlines yield `TimedOut`. Session close yields `BrokenPipe`. The implementation uses nonblocking descriptors and poll waits of at most 20 ms, so cancellation and close do not depend on input arriving. An input timeout preserves partial UTF-8, escape sequences, and paste. Resize changes are detected by checking the output size during the same bounded polling loop; changes may coalesce and do not require installing a signal handler.
 

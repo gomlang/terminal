@@ -68,6 +68,25 @@ fn pipe_sessions_decode_partial_reads_report_eof_once_and_restore_flags() -> () 
 }
 
 #[test]
+fn truncated_eof_does_not_become_a_successful_session_eof() -> () {
+    for bytes in[Vec::from_array([0xe4]), "\u001b[200~unfinished".to_bytes()] {
+        let (input, output, session) = pipes();
+        defer cleanup(input, output, session);
+        testing::assert_ok(input.writer.write_all(bytes.as_slice()));
+        testing::assert_ok(input.writer.close());
+        for _ in 0..3 {
+            equal(
+                testing::expect_err(
+                    session.next_event(context::Context::background(), 200),
+                    "truncated input stays invalid",
+                ).kind(),
+                io::ErrorKind::InvalidData,
+            );
+        }
+    }
+}
+
+#[test]
 fn delayed_escape_and_utf8_fragments_survive_poll_timeouts() -> () {
     let (input, output, session) = pipes();
     defer cleanup(input, output, session);

@@ -196,6 +196,23 @@ fn escape_ambiguity_and_eof_are_explicit() -> () {
 }
 
 #[test]
+fn truncated_eof_remains_failed_through_decoder_aliases() -> () {
+    for input in[Vec::from_array([0xe4]), "\u001b[200~unfinished".to_bytes()] {
+        let parser = decoder();
+        let alias = parser;
+        testing::assert_ok(parser.feed(input.as_slice()));
+        for _ in 0..3 {
+            equal(
+                testing::expect_err(alias.finish(), "truncated EOF stays failed").kind(),
+                io::ErrorKind::InvalidData,
+            );
+        }
+        testing::assert(parser.flush_escape().is_empty());
+        testing::assert_err(parser.feed("a".to_bytes().as_slice()));
+    }
+}
+
+#[test]
 fn malformed_utf8_incomplete_paste_and_long_sequences_fail_recoverably() -> () {
     for value in Vec::from_array(
         [
