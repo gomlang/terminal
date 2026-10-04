@@ -1,0 +1,44 @@
+package tests;
+
+use ecosystem::terminal;
+use std::testing;
+use std::time;
+
+#[test]
+#[ignore]
+fn bracketed_paste_streaming_scaling() -> () {
+    for size in[65536, 1048576] {
+        let payload = "x".repeat(size);
+        let bytes = ("\u001b[200~" + payload + "\u001b[201~").to_bytes();
+        for fragment in[1, 4096] {
+            let started = time::Instant::now();
+            for _ in 0..3 {
+                let parser = testing::expect_ok(
+                    terminal::Decoder::new(terminal::DecoderOptions::defaults()),
+                    "decoder",
+                );
+                let events = Vec::new();
+                let mut at = 0;
+                while at < bytes.len() {
+                    let end = if at + fragment < bytes.len() {
+                        at + fragment
+                    } else {
+                        bytes.len()
+                    };
+                    for event in testing::expect_ok(
+                        parser.feed(bytes.slice(at, end)),
+                        "paste fragment",
+                    ) {
+                        events.push(event);
+                    }
+                    at = end;
+                }
+                testing::assert(events == Vec::from_array([terminal::Event::Paste(payload)]));
+                testing::assert_ok(parser.finish());
+            }
+            println(
+                f"{size} paste bytes, {fragment}-byte fragments x3: {started.elapsed().as_milliseconds()} ms",
+            );
+        }
+    }
+}

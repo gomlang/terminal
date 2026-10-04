@@ -352,6 +352,12 @@ impl Decoder {
         let events = Vec::new();
         for value in input {
             state.buffer.push(value);
+            // Only '~' can complete the paste delimiter. Buffer other bytes
+            // directly, avoiding a state result for every payload byte; crossing
+            // the retained-byte bound still takes the ordinary error path.
+            if state.paste && value != 126 && state.buffer.len() <= self.options.max_paste_bytes + 6 {
+                continue
+            }
             match parse_buffer(state, self.options, events) {
                 Ok(next) => {
                     state = next;

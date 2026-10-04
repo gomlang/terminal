@@ -182,6 +182,83 @@ fn bracketed_paste_preserves_escape_sequences_and_enforces_exact_byte_limits() -
 }
 
 #[test]
+fn paste_near_markers_utf8_and_following_events_survive_fragmentation() -> () {
+    let payload = "é中🙂~~~\u001b[20X~\u001b[201x\u001b[20~\u001b\u001b[200~\n";
+    let bytes = ("\u001b[200~" + payload + "\u001b[201~q\u001b[200~\u001b[201~").to_bytes();
+    let expected = Vec::from_array(
+        [
+            terminal::Event::Paste(payload),
+            key(terminal::KeyCode::Char('q')),
+            terminal::Event::Paste(""),
+        ],
+    );
+    for size in[1, 2, 3, 5, 6, 7, bytes.len()] {
+        let parser = testing::expect_ok(
+            terminal::Decoder::new(
+                terminal::DecoderOptions {
+                    max_paste_bytes: payload.byte_len(),
+                    ..terminal::DecoderOptions::defaults(),
+                },
+            ),
+            "exact payload limit",
+        );
+        let actual = Vec::new();
+        let mut at = 0;
+        while at < bytes.len() {
+            let end = if at + size < bytes.len() {
+                at + size
+            } else {
+                bytes.len()
+            };
+            for event in testing::expect_ok(parser.feed(bytes.slice(at, end)), "paste fragment") {
+                actual.push(event);
+            }
+            at = end;
+        }
+        equal(actual, expected);
+        equal(
+            testing::expect_ok(parser.finish(), "complete pastes"),
+            Vec::from_array([terminal::Event::End]),
+        );
+    }
+}
+
+#[test]
+fn paste_retained_byte_bound_fails_at_the_same_byte_for_any_payload() -> () {
+    for limit in[0, 1, 3] {
+        for byte in[120.to_u8(), 126.to_u8(), 27.to_u8(), 0xff.to_u8()] {
+            let parser = testing::expect_ok(
+                terminal::Decoder::new(
+                    terminal::DecoderOptions {
+                        max_paste_bytes: limit,
+                        ..terminal::DecoderOptions::defaults(),
+                    },
+                ),
+                "small paste limit",
+            );
+            testing::assert_ok(parser.feed("\u001b[200~".to_bytes().as_slice()));
+            for _ in 0..limit + 6 {
+                testing::assert(
+                    testing::expect_ok(
+                        parser.feed(Vec::from_array([byte]).as_slice()),
+                        "retained delimiter allowance",
+                    ).is_empty(),
+                );
+                testing::assert(!parser.pending_escape());
+                testing::assert(parser.flush_escape().is_empty());
+            }
+            let error = testing::expect_err(
+                parser.feed(Vec::from_array([byte]).as_slice()),
+                "first byte above retained bound",
+            );
+            equal(error.kind(), io::ErrorKind::InvalidData);
+            testing::assert_err(parser.finish());
+            testing::assert_err(parser.feed("\u001b[201~q".to_bytes().as_slice()));
+        }
+    }
+}
+
+#[test]
 fn escape_ambiguity_and_eof_are_explicit() -> () {
     let parser = decoder();
     equal(testing::expect_ok(parser.feed("\u001b".to_bytes().as_slice()), "escape prefix").len(), 0);
