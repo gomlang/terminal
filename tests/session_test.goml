@@ -87,6 +87,45 @@ fn truncated_eof_does_not_become_a_successful_session_eof() -> () {
 }
 
 #[test]
+fn failed_decoding_remains_an_error_without_waiting_for_more_input() -> () {
+    let invalid_paste = "\u001b[200~".to_bytes();
+    invalid_paste.push(255);
+    for byte in "\u001b[201~".to_bytes() {
+        invalid_paste.push(byte);
+    }
+    for bytes in[Vec::from_array([255]), ("\u001b[" + "1".repeat(300)).to_bytes(), invalid_paste] {
+        let (input, output, session) = pipes();
+        defer cleanup(input, output, session);
+        let alias = session;
+        let ctx = context::Context::background();
+        testing::assert_ok(input.writer.write_all(bytes.as_slice()));
+        let first = testing::expect_err(session.next_event(ctx, 200), "invalid input");
+        testing::assert_eq(first.kind(), io::ErrorKind::InvalidData);
+        for _ in 0..3 {
+            let next = testing::expect_err(alias.next_event(ctx, 0), "failed poll");
+            testing::assert_eq(next.to_string(), first.to_string());
+        }
+        context::with_timeout(
+            ctx,
+            time::Duration::from_milliseconds(25),
+            |ctx, _| {
+                let next = testing::expect_err(alias.next_event(ctx, -1), "failed wait");
+                testing::assert_eq(next.to_string(), first.to_string());
+            },
+        );
+        testing::assert_ok(session.write("still writable"));
+        testing::assert_ok(input.writer.write_all("q".to_bytes().as_slice()));
+        let next = testing::expect_err(session.next_event(ctx, 0), "failed with queued input");
+        testing::assert_eq(next.to_string(), first.to_string());
+        testing::assert_ok(session.close());
+        testing::assert_eq(
+            testing::expect_err(alias.next_event(ctx, 0), "closed session").kind(),
+            io::ErrorKind::BrokenPipe,
+        );
+    }
+}
+
+#[test]
 fn delayed_escape_and_utf8_fragments_survive_poll_timeouts() -> () {
     let (input, output, session) = pipes();
     defer cleanup(input, output, session);

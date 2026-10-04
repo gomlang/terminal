@@ -48,6 +48,11 @@ A terminal should have one application-owned session. Independent sessions contr
 
 `Context` cancellation yields `io::ErrorKind::Interrupted`; context deadlines yield `TimedOut`. Session close yields `BrokenPipe`. The implementation uses nonblocking descriptors and poll waits of at most 20 ms, so cancellation and close do not depend on input arriving. An input timeout preserves partial UTF-8, escape sequences, and paste. Resize changes are detected by checking the output size during the same bounded polling loop; changes may coalesce and do not require installing a signal handler.
 
+A decoding failure is retained across session copies. Later reads return that
+original error without waiting for or consuming additional input. Output and
+cleanup remain usable; explicit cancellation, deadlines and session close keep
+their usual precedence.
+
 `write(text)` and `write_with(context, text)` write directly, so there is no buffered flush requirement. Writes are performed in chunks of at most 64 KiB. A failed or cancelled write may have written a prefix; callers must not blindly replay the whole value. Setup and cleanup control output have a 200 ms budget, allowing termios restoration even when output is blocked. No arbitrary terminal control bytes are added to ordinary `write` calls.
 
 Supported events:

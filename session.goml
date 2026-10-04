@@ -15,6 +15,7 @@ struct InputState {
     escape_since: Option[time::Instant],
     last_size: Option[Size],
     ended: bool,
+    failure: Option[Error],
 }
 
 pub struct Session {
@@ -207,6 +208,7 @@ impl Session {
                     Err(_) => Option::None,
                 },
                 ended: false,
+                failure: Option::None,
             },
         );
         let output_gate = Channel::new(1);
@@ -316,6 +318,9 @@ impl Session {
         let mut polled = false;
         loop {
             check(self, context)?;
+            if let Some(error) = state.failure {
+                return Result::Err(error)
+            }
             if state.offset < state.pending.len() {
                 let event = state.pending[state.offset];
                 state.offset += 1;
@@ -376,11 +381,23 @@ impl Session {
             let data = zeroes(4096);
             match self.input.read(data.as_mut_slice()) {
                 Ok(0) => {
-                    state.pending = state.decoder.finish()?;
+                    state.pending = match state.decoder.finish() {
+                        Ok(events) => events,
+                        Err(error) => {
+                            state.failure = Option::Some(error);
+                            return Result::Err(error)
+                        },
+                    };
                     state.ended = true;
                 },
                 Ok(count) => {
-                    state.pending = state.decoder.feed(data.slice(0, count))?;
+                    state.pending = match state.decoder.feed(data.slice(0, count)) {
+                        Ok(events) => events,
+                        Err(error) => {
+                            state.failure = Option::Some(error);
+                            return Result::Err(error)
+                        },
+                    };
                     if state.decoder.pending_escape() {
                         if state.escape_since.is_none() || !state.pending.is_empty() {
                             state.escape_since = Option::Some(time::Instant::now());
