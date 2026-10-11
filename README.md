@@ -89,7 +89,7 @@ Protocol and raw-mode references: [Xterm control sequences](https://invisible-is
 
 ## Validation
 
-Run `(cd ../verification && just ecosystem-test terminal)` from this library repository. The native GoML verifier builds the example and exercises it under real Linux PTYs: fragmented keys/UTF-8/paste, ESC ambiguity, mouse/focus, ioctl resize, cancellation, ordinary error cleanup, exact termios/flag restoration, mode enable/disable output, a 4 MiB write with backpressure, and redirected-file offset/append preservation. Pipe tests cover EOF, raw-mode rejection, session aliases, queued/active reader and writer cancellation, serialization under backpressure, idempotent close, and flag restoration. The verifier also rebuilds and runs generated library and example tests with Go's race detector. No Python interpreter is required.
+Run `(cd ../workflows && just ecosystem-test terminal)` from this library repository. The native GoML verifier builds the example and exercises it under real Linux PTYs: fragmented keys/UTF-8/paste, ESC ambiguity, mouse/focus, ioctl resize, cancellation, ordinary error cleanup, exact termios/flag restoration, mode enable/disable output, a 4 MiB write with backpressure, and redirected-file offset/append preservation. Pipe tests cover EOF, raw-mode rejection, session aliases, queued/active reader and writer cancellation, serialization under backpressure, idempotent close, and flag restoration. The verifier also rebuilds and runs generated library and example tests with Go's race detector. No Python interpreter is required.
 
 For opt-in paste decoding measurements, run
 `goml test --ignored --nocapture bracketed_paste_streaming_scaling`. It measures
@@ -98,12 +98,12 @@ events, and reports elapsed time without timing assertions.
 
 ## Development and examples
 
-Requires a current GoML toolchain supporting unversioned registry dependencies; see [the pinned ecosystem toolchain](https://github.com/gomlang/verification/blob/main/ci/toolchain.json). The `examples/basic/` example shares the root manifest. From the library root, run:
+Requires a current GoML toolchain supporting unversioned registry dependencies; see [the pinned ecosystem toolchain](https://github.com/gomlang/workflows/blob/main/ci/toolchain.json). The `examples/basic/` example shares the root manifest. From the library root, run:
 
 ```sh
 goml run --example basic
 goml test
-(cd ../verification && just ecosystem-test terminal)
+(cd ../workflows && just ecosystem-test terminal)
 ```
 
 `goml test` builds the example and runs its tests. The ecosystem verifier uses an isolated registry snapshot and runs the library-specific smoke and compatibility checks.
